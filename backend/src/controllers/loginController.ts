@@ -30,12 +30,21 @@ export class LoginController {
 
       const token = jwt.sign(
         {
+<<<<<<< HEAD
         id_usuario: usuario.id_usuario,
         email: usuario.email,
         perfil: usuario.perfil,
         },
         process.env.JWT_SECRET as string,
         { expiresIn: "8h" }
+=======
+          id_usuario: usuario.id_usuario,
+          email: usuario.email,
+          perfil: usuario.perfil,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: process.env.JWT_EXPIRES_IN || "8h" }
+>>>>>>> 2addfd322a0695feddfdcc1a6ab3058a1069f81f
       );
 
       res.status(200).json({
