@@ -136,4 +136,31 @@ export class TurmaController {
       res.status(500).json({ error: "Erro ao matricular aluno." });
     }
   };
+
+    desmatricularAluno = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id_aluno = parseInt(req.params.id_aluno);
+    const id_turma = parseInt(req.params.id);
+
+    const turma = await this.turmaRepository.getById(id_turma);
+    if (!turma) {
+      res.status(404).json({ error: "Turma não encontrada." });
+      return;
+    }
+
+    const alunosAtuais = (await turma.alunos) || [];
+    const matriculado = alunosAtuais.some((a) => a.id_aluno === id_aluno);
+    if (!matriculado) {
+      res.status(404).json({ error: "Aluno não está matriculado nesta turma." });
+      return;
+    }
+
+    turma.alunos = alunosAtuais.filter((a) => a.id_aluno !== id_aluno);
+    await this.turmaRepository.update(id_turma, turma);
+
+    res.status(200).json({ message: "Aluno desmatriculado com sucesso." });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao desmatricular aluno." });
+  }
+};
 }

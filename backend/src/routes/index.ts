@@ -67,6 +67,7 @@ router.get   ("/turmas/:id",            auth.hasAuthorization, turmaController.g
 router.put   ("/turmas/:id",            auth.hasAuthorization, auth.isAdmin, turmaController.update);
 router.delete("/turmas/:id",            auth.hasAuthorization, auth.isAdmin, turmaController.delete);
 router.post  ("/turmas/:id/matricular", auth.hasAuthorization, auth.isAdminOrProfessor, turmaController.matricularAluno);
+router.delete("/turmas/:id/aluno/:id_aluno", auth.hasAuthorization, auth.isAdminOrProfessor, turmaController.desmatricularAluno);
 
 // ── Presenças ─────────────────────────────────────────────────────────────────
 router.post  ("/presencas",              auth.hasAuthorization, auth.isAdminOrProfessor, presencaController.create);
