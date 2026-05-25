@@ -65,9 +65,30 @@ export class ProfessorController {
 
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const sucesso = await this.professorRepository.delete(
-        parseInt(req.params.id)
-      );
+      const id = parseInt(req.params.id);
+
+      // Verifica se o professor existe
+      const professor = await this.professorRepository.getById(id);
+      if (!professor) {
+        res.status(404).json({ error: "Professor não encontrado." });
+        return;
+      }
+
+      // Verifica vínculos com turmas
+      const vinculos = await this.professorRepository.temVinculos(id);
+
+      if (vinculos.turmas > 0) {
+        res.status(409).json({
+          error: "Não é possível excluir este professor pois ele está vinculado a turmas ativas.",
+          detalhes: {
+            turmas: vinculos.turmas,
+          },
+          sugestao: "Remova ou reatribua as turmas deste professor antes de excluí-lo.",
+        });
+        return;
+      }
+
+      const sucesso = await this.professorRepository.delete(id);
       if (!sucesso) {
         res.status(404).json({ error: "Professor não encontrado." });
         return;

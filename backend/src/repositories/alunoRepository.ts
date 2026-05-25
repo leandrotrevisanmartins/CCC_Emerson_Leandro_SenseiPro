@@ -1,19 +1,27 @@
 import { DataSource, Repository } from "typeorm";
-import { Aluno } from "../entities/aluno";
+import { Aluno, StatusAluno } from "../entities/aluno";
+import { Presenca } from "../entities/presenca";
+import { Mensalidade } from "../entities/mensalidade";
 
 export interface IAlunoRepository {
   getAll(): Promise<Aluno[]>;
   getById(id: number): Promise<Aluno | undefined>;
   create(data: Partial<Aluno>): Promise<Aluno>;
   update(id: number, data: Partial<Aluno>): Promise<Aluno | undefined>;
+  inativar(id: number): Promise<Aluno | undefined>;
   delete(id: number): Promise<boolean>;
+  temVinculos(id: number): Promise<{ presencas: number; mensalidades: number }>;
 }
 
 class AlunoRepository implements IAlunoRepository {
   private repository: Repository<Aluno>;
+  private presencaRepository: Repository<Presenca>;
+  private mensalidadeRepository: Repository<Mensalidade>;
 
   constructor(dataSource: DataSource) {
     this.repository = dataSource.getRepository(Aluno);
+    this.presencaRepository = dataSource.getRepository(Presenca);
+    this.mensalidadeRepository = dataSource.getRepository(Mensalidade);
   }
 
   async getAll(): Promise<Aluno[]> {
@@ -38,6 +46,23 @@ class AlunoRepository implements IAlunoRepository {
     if (!aluno) return undefined;
     const merged = this.repository.merge(aluno, data);
     return this.repository.save(merged);
+  }
+
+  // Inativa o aluno sem excluir — usado quando há vínculos
+  async inativar(id: number): Promise<Aluno | undefined> {
+    const aluno = await this.getById(id);
+    if (!aluno) return undefined;
+    aluno.status = StatusAluno.INATIVO;
+    return this.repository.save(aluno);
+  }
+
+  // Verifica quantos registros estão vinculados ao aluno
+  async temVinculos(id: number): Promise<{ presencas: number; mensalidades: number }> {
+    const [presencas, mensalidades] = await Promise.all([
+      this.presencaRepository.count({ where: { aluno: { id_aluno: id } } }),
+      this.mensalidadeRepository.count({ where: { aluno: { id_aluno: id } } }),
+    ]);
+    return { presencas, mensalidades };
   }
 
   async delete(id: number): Promise<boolean> {

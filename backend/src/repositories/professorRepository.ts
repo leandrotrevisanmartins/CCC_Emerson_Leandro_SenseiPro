@@ -1,5 +1,6 @@
 import { DataSource, Repository } from "typeorm";
 import { Professor } from "../entities/professor";
+import { Turma } from "../entities/turma";
 
 export interface IProfessorRepository {
   getAll(): Promise<Professor[]>;
@@ -7,13 +8,16 @@ export interface IProfessorRepository {
   create(data: Partial<Professor>): Promise<Professor>;
   update(id: number, data: Partial<Professor>): Promise<Professor | undefined>;
   delete(id: number): Promise<boolean>;
+  temVinculos(id: number): Promise<{ turmas: number }>;
 }
 
 class ProfessorRepository implements IProfessorRepository {
   private repository: Repository<Professor>;
+  private turmaRepository: Repository<Turma>;
 
   constructor(dataSource: DataSource) {
     this.repository = dataSource.getRepository(Professor);
+    this.turmaRepository = dataSource.getRepository(Turma);
   }
 
   async getAll(): Promise<Professor[]> {
@@ -38,6 +42,14 @@ class ProfessorRepository implements IProfessorRepository {
     if (!professor) return undefined;
     const merged = this.repository.merge(professor, data);
     return this.repository.save(merged);
+  }
+
+  // Verifica quantas turmas estão vinculadas ao professor
+  async temVinculos(id: number): Promise<{ turmas: number }> {
+    const turmas = await this.turmaRepository.count({
+      where: { professor: { id_professor: id } },
+    });
+    return { turmas };
   }
 
   async delete(id: number): Promise<boolean> {

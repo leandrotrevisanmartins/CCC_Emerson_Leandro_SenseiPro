@@ -1,31 +1,44 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Modal, Form, Alert, Spinner, Badge, Row, Col } from "react-bootstrap";
-import { TurmaInterface, ModalidadeInterface, ProfessorInterface } from "./interfaces";
-import { turmaService, modalidadeService, professorService } from "./services";
+import { Table, Button, Modal, Form, Alert, Spinner, Badge, Row, Col, ListGroup } from "react-bootstrap";
+import { TurmaInterface, ModalidadeInterface, ProfessorInterface, AlunoInterface } from "./interfaces";
+import { turmaService, modalidadeService, professorService, alunoService } from "./services";
 
 export default function Turmas() {
   const [turmas, setTurmas] = useState<TurmaInterface[]>([]);
   const [modalidades, setModalidades] = useState<ModalidadeInterface[]>([]);
   const [professores, setProfessores] = useState<ProfessorInterface[]>([]);
+  const [todosAlunos, setTodosAlunos] = useState<AlunoInterface[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+
+  // Modal de criar/editar turma
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<TurmaInterface | null>(null);
   const [form, setForm] = useState({ nome: "", horario: "", dia_semana: "", id_modalidade: 0, id_professor: 0 });
   const [salvando, setSalvando] = useState(false);
 
+  // Modal de matrícula
+  const [showMatriculaModal, setShowMatriculaModal] = useState(false);
+  const [turmaMatricula, setTurmaMatricula] = useState<TurmaInterface | null>(null);
+  const [alunosMatriculados, setAlunosMatriculados] = useState<AlunoInterface[]>([]);
+  const [alunoParaMatricular, setAlunoParaMatricular] = useState(0);
+  const [salvandoMatricula, setSalvandoMatricula] = useState(false);
+  const [erroMatricula, setErroMatricula] = useState("");
+
   const carregar = async () => {
     try {
       setLoading(true);
-      const [t, m, p] = await Promise.all([
+      const [t, m, p, a] = await Promise.all([
         turmaService.getAll(),
         modalidadeService.getAll(),
         professorService.getAll(),
+        alunoService.getAll(),
       ]);
       setTurmas(t);
       setModalidades(m);
       setProfessores(p);
+      setTodosAlunos(a);
       if (m.length === 0) setAviso("Nenhuma modalidade cadastrada. Cadastre uma modalidade antes de criar turmas.");
       else if (p.length === 0) setAviso("Nenhum professor cadastrado. Cadastre um professor antes de criar turmas.");
       else setAviso("");
@@ -38,6 +51,7 @@ export default function Turmas() {
 
   useEffect(() => { carregar(); }, []);
 
+  // ── Criar / Editar turma ──────────────────────────────────────
   const abrirNovo = () => {
     if (modalidades.length === 0 || professores.length === 0) {
       setErro("Cadastre ao menos uma modalidade e um professor antes de criar turmas.");
@@ -84,6 +98,60 @@ export default function Turmas() {
     catch { setErro("Erro ao excluir turma."); }
   };
 
+  // ── Matrícula ─────────────────────────────────────────────────
+  const abrirMatricula = async (t: TurmaInterface) => {
+    setErroMatricula("");
+    setAlunoParaMatricular(0);
+    setTurmaMatricula(t);
+    // Busca turma atualizada com lista de alunos
+    try {
+      const turmaAtualizada = await turmaService.getById(t.id_turma!);
+      setAlunosMatriculados(turmaAtualizada.alunos || []);
+    } catch {
+      setAlunosMatriculados(t.alunos || []);
+    }
+    setShowMatriculaModal(true);
+  };
+
+  const matricular = async () => {
+    if (!alunoParaMatricular || !turmaMatricula?.id_turma) return;
+    setSalvandoMatricula(true);
+    setErroMatricula("");
+    try {
+      await turmaService.matricular(turmaMatricula.id_turma, alunoParaMatricular);
+      const turmaAtualizada = await turmaService.getById(turmaMatricula.id_turma);
+      setAlunosMatriculados(turmaAtualizada.alunos || []);
+      setAlunoParaMatricular(0);
+      carregar();
+    } catch {
+      setErroMatricula("Erro ao matricular. O aluno pode já estar nesta turma.");
+    } finally {
+      setSalvandoMatricula(false);
+    }
+  };
+
+  const desmatricular = async (id_aluno: number) => {
+    if (!turmaMatricula?.id_turma) return;
+    if (!confirm("Remover este aluno da turma?")) return;
+    setSalvandoMatricula(true);
+    setErroMatricula("");
+    try {
+      await turmaService.desmatricular(turmaMatricula.id_turma, id_aluno);
+      const turmaAtualizada = await turmaService.getById(turmaMatricula.id_turma);
+      setAlunosMatriculados(turmaAtualizada.alunos || []);
+      carregar();
+    } catch {
+      setErroMatricula("Erro ao desmatricular aluno.");
+    } finally {
+      setSalvandoMatricula(false);
+    }
+  };
+
+  // Alunos disponíveis = todos - já matriculados
+  const alunosDisponiveis = todosAlunos.filter(
+    a => !alunosMatriculados.some(m => m.id_aluno === a.id_aluno) && a.status === "ativo"
+  );
+
   return (
     <div className="py-3">
       <Row className="align-items-center mb-3">
@@ -102,7 +170,10 @@ export default function Turmas() {
       ) : (
         <Table striped bordered hover responsive>
           <thead className="table-dark">
-            <tr><th>#</th><th>Nome</th><th>Horário</th><th>Dias</th><th>Modalidade</th><th>Professor</th><th>Alunos</th><th>Ações</th></tr>
+            <tr>
+              <th>#</th><th>Nome</th><th>Horário</th><th>Dias</th>
+              <th>Modalidade</th><th>Professor</th><th>Alunos</th><th>Ações</th>
+            </tr>
           </thead>
           <tbody>
             {turmas.length === 0 ? (
@@ -115,10 +186,21 @@ export default function Turmas() {
                 <td>{t.dia_semana}</td>
                 <td><Badge bg="info" text="dark">{t.modalidade.nome}</Badge></td>
                 <td>{t.professor.nome}</td>
-                <td>{t.alunos?.length ?? 0}</td>
                 <td>
-                  <Button size="sm" variant="outline-primary" className="me-1" onClick={() => abrirEdicao(t)}>Editar</Button>
-                  <Button size="sm" variant="outline-danger" onClick={() => deletar(t.id_turma!)}>Excluir</Button>
+                  <Badge bg="secondary" style={{ cursor: "pointer" }} onClick={() => abrirMatricula(t)}>
+                    {t.alunos?.length ?? 0} aluno(s)
+                  </Badge>
+                </td>
+                <td>
+                  <Button size="sm" variant="outline-success" className="me-1" onClick={() => abrirMatricula(t)}>
+                    Matrículas
+                  </Button>
+                  <Button size="sm" variant="outline-primary" className="me-1" onClick={() => abrirEdicao(t)}>
+                    Editar
+                  </Button>
+                  <Button size="sm" variant="outline-danger" onClick={() => deletar(t.id_turma!)}>
+                    Excluir
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -126,6 +208,7 @@ export default function Turmas() {
         </Table>
       )}
 
+      {/* ── Modal criar/editar turma ── */}
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Form onSubmit={salvar}>
           <Modal.Header closeButton>
@@ -170,6 +253,90 @@ export default function Turmas() {
             <Button variant="dark" type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button>
           </Modal.Footer>
         </Form>
+      </Modal>
+
+      {/* ── Modal de matrículas ── */}
+      <Modal show={showMatriculaModal} onHide={() => setShowMatriculaModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Matrículas — {turmaMatricula?.nome}
+            <span className="text-muted fw-normal" style={{ fontSize: "0.85rem", marginLeft: 8 }}>
+              {turmaMatricula?.modalidade.nome} · {turmaMatricula?.horario} · {turmaMatricula?.dia_semana}
+            </span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {erroMatricula && <Alert variant="danger" dismissible onClose={() => setErroMatricula("")}>{erroMatricula}</Alert>}
+
+          {/* Adicionar aluno */}
+          <p className="section-label fw-bold mb-2" style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
+            ADICIONAR ALUNO
+          </p>
+          <Row className="mb-4 g-2">
+            <Col>
+              <Form.Select
+                value={alunoParaMatricular}
+                onChange={e => setAlunoParaMatricular(Number(e.target.value))}
+                disabled={salvandoMatricula}
+              >
+                <option value={0}>
+                  {alunosDisponiveis.length === 0
+                    ? "Nenhum aluno ativo disponível"
+                    : "Selecione um aluno para matricular..."}
+                </option>
+                {alunosDisponiveis.map(a => (
+                  <option key={a.id_aluno} value={a.id_aluno}>{a.nome}</option>
+                ))}
+              </Form.Select>
+            </Col>
+            <Col xs="auto">
+              <Button
+                variant="success"
+                disabled={!alunoParaMatricular || salvandoMatricula}
+                onClick={matricular}
+              >
+                {salvandoMatricula ? <Spinner size="sm" animation="border" /> : "Matricular"}
+              </Button>
+            </Col>
+          </Row>
+
+          {/* Lista de matriculados */}
+          <p className="fw-bold mb-2" style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
+            ALUNOS MATRICULADOS ({alunosMatriculados.length})
+          </p>
+          {alunosMatriculados.length === 0 ? (
+            <p className="text-muted text-center py-3" style={{ fontSize: "13px" }}>
+              Nenhum aluno matriculado nesta turma.
+            </p>
+          ) : (
+            <ListGroup>
+              {alunosMatriculados.map(a => (
+                <ListGroup.Item
+                  key={a.id_aluno}
+                  className="d-flex align-items-center justify-content-between py-2"
+                >
+                  <div>
+                    <span style={{ fontWeight: 500 }}>{a.nome}</span>
+                    {a.email && (
+                      <span className="text-muted ms-2" style={{ fontSize: "12px" }}>{a.email}</span>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    disabled={salvandoMatricula}
+                    onClick={() => desmatricular(a.id_aluno!)}
+                  >
+                    Remover
+                  </Button>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowMatriculaModal(false)}>Fechar</Button>
+        </Modal.Footer>
       </Modal>
     </div>
   );

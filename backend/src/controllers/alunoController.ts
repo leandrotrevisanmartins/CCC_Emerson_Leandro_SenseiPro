@@ -61,9 +61,47 @@ export class AlunoController {
     }
   };
 
+  // Inativa o aluno sem excluir do banco
+  inativar = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const inativado = await this.alunoRepository.inativar(parseInt(req.params.id));
+      if (!inativado) {
+        res.status(404).json({ error: "Aluno não encontrado." });
+        return;
+      }
+      res.status(200).json(inativado);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao inativar aluno." });
+    }
+  };
+
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const sucesso = await this.alunoRepository.delete(parseInt(req.params.id));
+      const id = parseInt(req.params.id);
+
+      // Verifica se o aluno existe
+      const aluno = await this.alunoRepository.getById(id);
+      if (!aluno) {
+        res.status(404).json({ error: "Aluno não encontrado." });
+        return;
+      }
+
+      // Verifica vínculos com presenças e mensalidades
+      const vinculos = await this.alunoRepository.temVinculos(id);
+
+      if (vinculos.presencas > 0 || vinculos.mensalidades > 0) {
+        res.status(409).json({
+          error: "Não é possível excluir este aluno pois ele possui registros vinculados.",
+          detalhes: {
+            presencas: vinculos.presencas,
+            mensalidades: vinculos.mensalidades,
+          },
+          sugestao: "Utilize a opção de inativar para manter o histórico do aluno.",
+        });
+        return;
+      }
+
+      const sucesso = await this.alunoRepository.delete(id);
       if (!sucesso) {
         res.status(404).json({ error: "Aluno não encontrado." });
         return;
