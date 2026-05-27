@@ -11,7 +11,6 @@ const NavbarTop = () => {
   const router = useRouter();
   const [usuario, setUsuario] = useState<{ email: string; perfil: string } | null>(null);
 
-  // Só acessa o localStorage após montar no browser
   useEffect(() => {
     const dados = localStorage.getItem("usuario");
     if (dados) setUsuario(JSON.parse(dados));
@@ -21,6 +20,8 @@ const NavbarTop = () => {
     authService.logout();
     router.push("/login");
   };
+
+  const isAdmin = usuario?.perfil === "admin";
 
   return (
     <Navbar bg="dark" expand="md" data-bs-theme="dark" fixed="top">
@@ -37,6 +38,12 @@ const NavbarTop = () => {
               <NavDropdown.Item as={Link} href="/mensalidades">Mensalidades</NavDropdown.Item>
             </NavDropdown>
             <Nav.Link as={Link} href="/graduacoes">Graduações</Nav.Link>
+            {isAdmin && (
+              <NavDropdown title="Configurações" id="config-dropdown">
+                <NavDropdown.Item as={Link} href="/usuarios">Usuários de Acesso</NavDropdown.Item>
+                <NavDropdown.Item as={Link} href="/modalidades">Modalidades</NavDropdown.Item>
+              </NavDropdown>
+            )}
           </Nav>
           <Nav className="ms-auto align-items-center">
             {usuario && (
@@ -45,10 +52,7 @@ const NavbarTop = () => {
                 <span className="badge bg-secondary">{usuario.perfil}</span>
               </Navbar.Text>
             )}
-            <Nav.Link
-              onClick={handleLogout}
-              style={{ cursor: "pointer", color: "#dc3545" }}
-            >
+            <Nav.Link onClick={handleLogout} style={{ cursor: "pointer", color: "#dc3545" }}>
               Sair
             </Nav.Link>
           </Nav>
