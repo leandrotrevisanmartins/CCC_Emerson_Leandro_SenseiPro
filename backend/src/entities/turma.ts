@@ -41,7 +41,8 @@ export class Turma {
   @JoinColumn({ name: "fk_Professor_id_professor" })
   professor!: Professor;
 
-  @ManyToMany(() => Aluno, (aluno) => aluno.turmas, { lazy: true })
+  // lazy: false — carregamento explícito via relations nas queries
+  @ManyToMany(() => Aluno, (aluno) => aluno.turmas)
   @JoinTable({
     name: "matricula",
     joinColumn: { name: "fk_Turma_id_turma", referencedColumnName: "id_turma" },
@@ -49,7 +50,7 @@ export class Turma {
   })
   alunos?: Aluno[];
 
-  @OneToMany(() => Presenca, (presenca) => presenca.turma, { lazy: true })
+  @OneToMany(() => Presenca, (presenca) => presenca.turma)
   presencas?: Presenca[];
 }
 

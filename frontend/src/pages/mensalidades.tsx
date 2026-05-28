@@ -16,10 +16,12 @@ export default function Mensalidades() {
   const [loading, setLoading] = useState(true);
   const [loadingInad, setLoadingInad] = useState(false);
   const [erro, setErro] = useState("");
-  const [aba, setAba] = useState<"todas" | "inadimplentes">("todas");
+  const [sucesso, setSucesso] = useState("");
+  const [aba, setAba] = useState<"todas" | "pendentes" | "inadimplentes">("todas");
 
-  // Modal nova mensalidade
+  // Modal nova/editar mensalidade
   const [showModal, setShowModal] = useState(false);
+  const [editando, setEditando] = useState<MensalidadeInterface | null>(null);
   const [form, setForm] = useState({ id_aluno: 0, mes_referencia: "", valor: "", data_vencimento: "" });
   const [salvando, setSalvando] = useState(false);
 
@@ -35,37 +37,43 @@ export default function Mensalidades() {
   const carregar = async () => {
     try {
       setLoading(true);
-      const [m, a] = await Promise.all([
-        mensalidadeService.getAll(),
-        alunoService.getAll(),
-      ]);
+      const [m, a] = await Promise.all([mensalidadeService.getAll(), alunoService.getAll()]);
       setMensalidades(m);
       setAlunos(a);
-    } catch {
-      setErro("Erro ao carregar mensalidades.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setErro("Erro ao carregar mensalidades."); }
+    finally { setLoading(false); }
   };
 
   const carregarInadimplentes = async () => {
     try {
       setLoadingInad(true);
       setInadimplentes(await mensalidadeService.getInadimplentes());
-    } catch {
-      setErro("Erro ao carregar inadimplentes.");
-    } finally {
-      setLoadingInad(false);
-    }
+    } catch { setErro("Erro ao carregar inadimplentes."); }
+    finally { setLoadingInad(false); }
   };
 
   useEffect(() => { carregar(); }, []);
 
-  const mudarAba = (novaAba: "todas" | "inadimplentes") => {
+  const mudarAba = (novaAba: "todas" | "pendentes" | "inadimplentes") => {
     setAba(novaAba);
-    if (novaAba === "inadimplentes" && inadimplentes.length === 0) {
-      carregarInadimplentes();
-    }
+    if (novaAba === "inadimplentes" && inadimplentes.length === 0) carregarInadimplentes();
+  };
+
+  const abrirNova = () => {
+    setEditando(null);
+    setForm({ id_aluno: 0, mes_referencia: "", valor: "", data_vencimento: "" });
+    setShowModal(true);
+  };
+
+  const abrirEdicao = (m: MensalidadeInterface) => {
+    setEditando(m);
+    setForm({
+      id_aluno: m.aluno.id_aluno || 0,
+      mes_referencia: m.mes_referencia,
+      valor: String(m.valor),
+      data_vencimento: m.data_vencimento.slice(0, 10),
+    });
+    setShowModal(true);
   };
 
   const salvar = async (e: React.FormEvent) => {
@@ -73,19 +81,22 @@ export default function Mensalidades() {
     if (!form.id_aluno) { setErro("Selecione um aluno."); return; }
     setSalvando(true);
     try {
-      await mensalidadeService.create({
-        ...form,
-        valor: parseFloat(form.valor),
-        id_aluno: form.id_aluno,
-      });
+      if (editando?.id_mensalidade) {
+        await mensalidadeService.update(editando.id_mensalidade, {
+          mes_referencia: form.mes_referencia,
+          valor: parseFloat(form.valor),
+          data_vencimento: form.data_vencimento as any,
+        });
+        setSucesso("Mensalidade atualizada.");
+      } else {
+        await mensalidadeService.create({ ...form, valor: parseFloat(form.valor), id_aluno: form.id_aluno });
+        setSucesso("Mensalidade criada.");
+      }
       setShowModal(false);
       carregar();
       if (aba === "inadimplentes") carregarInadimplentes();
-    } catch {
-      setErro("Erro ao criar mensalidade.");
-    } finally {
-      setSalvando(false);
-    }
+    } catch { setErro("Erro ao salvar mensalidade."); }
+    finally { setSalvando(false); }
   };
 
   const abrirPagamento = (m: MensalidadeInterface) => {
@@ -105,49 +116,43 @@ export default function Mensalidades() {
         forma_pagamento: pagForm.forma_pagamento,
       });
       setShowPagModal(false);
+      setSucesso("Pagamento registrado.");
       carregar();
       if (aba === "inadimplentes") carregarInadimplentes();
-    } catch {
-      setErro("Erro ao registrar pagamento.");
-    } finally {
-      setSalvando(false);
-    }
+    } catch { setErro("Erro ao registrar pagamento."); }
+    finally { setSalvando(false); }
   };
 
   const excluir = async (id: number) => {
-    if (!confirm("Excluir mensalidade?")) return;
+    if (!confirm("Excluir esta mensalidade?")) return;
     try {
       await mensalidadeService.delete(id);
+      setSucesso("Mensalidade excluída.");
       carregar();
       if (aba === "inadimplentes") carregarInadimplentes();
-    } catch {
-      setErro("Erro ao excluir mensalidade.");
-    }
+    } catch { setErro("Erro ao excluir mensalidade."); }
   };
 
   const marcarAtrasado = async (m: MensalidadeInterface) => {
-    if (!confirm(`Marcar mensalidade de ${m.aluno.nome} como atrasada?`)) return;
     try {
       await mensalidadeService.update(m.id_mensalidade!, { status: "atrasado" });
       carregar();
       if (aba === "inadimplentes") carregarInadimplentes();
-    } catch {
-      setErro("Erro ao atualizar status.");
-    }
+    } catch { setErro("Erro ao atualizar status."); }
   };
 
-  // Filtros da aba "todas"
   const filtradas = mensalidades.filter(m => {
     if (filtroStatus && m.status !== filtroStatus) return false;
     if (filtroAluno && !m.aluno.nome.toLowerCase().includes(filtroAluno.toLowerCase())) return false;
     return true;
   });
 
-  // Totalizadores dos inadimplentes
+  const pendentes = mensalidades.filter(m => m.status !== "pago");
+  const totalPendente = pendentes.reduce((acc, m) => acc + Number(m.valor), 0);
   const totalInadimplente = inadimplentes.reduce((acc, m) => acc + Number(m.valor), 0);
   const alunosUnicos = new Set(inadimplentes.map(m => m.aluno.id_aluno)).size;
 
-  const TabelaMensalidades = ({ lista }: { lista: MensalidadeInterface[] }) => (
+  const TabelaMensalidades = ({ lista, comEdicao = false }: { lista: MensalidadeInterface[]; comEdicao?: boolean }) => (
     <Table striped bordered hover responsive>
       <thead className="table-dark">
         <tr>
@@ -174,7 +179,12 @@ export default function Mensalidades() {
               )}
               {m.status === "pendente" && (
                 <Button size="sm" variant="outline-warning" className="me-1" onClick={() => marcarAtrasado(m)}>
-                  Marcar Atrasado
+                  Atrasar
+                </Button>
+              )}
+              {comEdicao && (
+                <Button size="sm" variant="outline-primary" className="me-1" onClick={() => abrirEdicao(m)}>
+                  Editar
                 </Button>
               )}
               <Button size="sm" variant="outline-danger" onClick={() => excluir(m.id_mensalidade!)}>
@@ -192,42 +202,30 @@ export default function Mensalidades() {
       <Row className="align-items-center mb-3">
         <Col><h4 className="fw-bold mb-0">💰 Mensalidades</h4></Col>
         <Col xs="auto">
-          <Button
-            variant="dark"
-            size="sm"
-            onClick={() => {
-              setForm({ id_aluno: 0, mes_referencia: "", valor: "", data_vencimento: "" });
-              setShowModal(true);
-            }}
-          >
-            + Nova Mensalidade
-          </Button>
+          <Button variant="dark" size="sm" onClick={abrirNova}>+ Nova Mensalidade</Button>
         </Col>
       </Row>
 
       {erro && <Alert variant="danger" dismissible onClose={() => setErro("")}>{erro}</Alert>}
+      {sucesso && <Alert variant="success" dismissible onClose={() => setSucesso("")}>{sucesso}</Alert>}
 
       {/* Abas */}
       <Nav variant="tabs" className="mb-3">
         <Nav.Item>
-          <Nav.Link
-            active={aba === "todas"}
-            onClick={() => mudarAba("todas")}
-            style={{ cursor: "pointer" }}
-          >
-            Todas as mensalidades
+          <Nav.Link active={aba === "todas"} onClick={() => mudarAba("todas")} style={{ cursor: "pointer" }}>
+            Todas
           </Nav.Link>
         </Nav.Item>
         <Nav.Item>
-          <Nav.Link
-            active={aba === "inadimplentes"}
-            onClick={() => mudarAba("inadimplentes")}
-            style={{ cursor: "pointer" }}
-          >
+          <Nav.Link active={aba === "pendentes"} onClick={() => mudarAba("pendentes")} style={{ cursor: "pointer" }}>
+            Pendentes
+            {pendentes.length > 0 && <Badge bg="warning" text="dark" className="ms-2">{pendentes.length}</Badge>}
+          </Nav.Link>
+        </Nav.Item>
+        <Nav.Item>
+          <Nav.Link active={aba === "inadimplentes"} onClick={() => mudarAba("inadimplentes")} style={{ cursor: "pointer" }}>
             Inadimplentes
-            {inadimplentes.length > 0 && (
-              <Badge bg="danger" className="ms-2">{inadimplentes.length}</Badge>
-            )}
+            {inadimplentes.length > 0 && <Badge bg="danger" className="ms-2">{inadimplentes.length}</Badge>}
           </Nav.Link>
         </Nav.Item>
       </Nav>
@@ -237,12 +235,8 @@ export default function Mensalidades() {
         <>
           <Row className="mb-3 g-2">
             <Col sm={4}>
-              <Form.Control
-                type="text"
-                placeholder="Buscar por nome do aluno..."
-                value={filtroAluno}
-                onChange={e => setFiltroAluno(e.target.value)}
-              />
+              <Form.Control type="text" placeholder="Buscar por aluno..." value={filtroAluno}
+                onChange={e => setFiltroAluno(e.target.value)} />
             </Col>
             <Col sm={3}>
               <Form.Select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
@@ -255,136 +249,114 @@ export default function Mensalidades() {
             {(filtroAluno || filtroStatus) && (
               <Col xs="auto">
                 <Button variant="outline-secondary" size="sm" onClick={() => { setFiltroAluno(""); setFiltroStatus(""); }}>
-                  Limpar filtros
+                  Limpar
                 </Button>
               </Col>
             )}
           </Row>
+          {loading ? <div className="text-center py-5"><Spinner animation="border" /></div>
+            : <TabelaMensalidades lista={filtradas} comEdicao />}
+        </>
+      )}
 
-          {loading ? (
-            <div className="text-center py-5"><Spinner animation="border" /></div>
-          ) : (
-            <TabelaMensalidades lista={filtradas} />
+      {/* ── Aba: Pendentes ── */}
+      {aba === "pendentes" && (
+        <>
+          {!loading && pendentes.length > 0 && (
+            <Row className="g-3 mb-4">
+              <Col xs={12} sm={4}>
+                <div style={{ background: "var(--color-background-warning)", borderRadius: "var(--border-radius-md)", padding: "1rem", textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-warning)" }}>{pendentes.length}</div>
+                  <div style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>mensalidades pendentes</div>
+                </div>
+              </Col>
+              <Col xs={12} sm={4}>
+                <div style={{ background: "var(--color-background-secondary)", borderRadius: "var(--border-radius-md)", padding: "1rem", textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: 500 }}>R$ {totalPendente.toFixed(2)}</div>
+                  <div style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>valor total em aberto</div>
+                </div>
+              </Col>
+            </Row>
           )}
+          {loading ? <div className="text-center py-5"><Spinner animation="border" /></div>
+            : pendentes.length === 0
+              ? <div className="text-center py-5"><div style={{ fontSize: "2rem" }}>✅</div><p className="text-muted mt-2">Nenhuma mensalidade pendente.</p></div>
+              : <TabelaMensalidades lista={pendentes} comEdicao />}
         </>
       )}
 
       {/* ── Aba: Inadimplentes ── */}
       {aba === "inadimplentes" && (
         <>
-          {loadingInad ? (
-            <div className="text-center py-5"><Spinner animation="border" /></div>
-          ) : (
+          {loadingInad ? <div className="text-center py-5"><Spinner animation="border" /></div> : (
             <>
               {inadimplentes.length > 0 && (
                 <Row className="g-3 mb-4">
                   <Col xs={12} sm={4}>
-                    <div style={{
-                      background: "var(--color-background-danger)",
-                      borderRadius: "var(--border-radius-md)",
-                      padding: "1rem",
-                      textAlign: "center"
-                    }}>
-                      <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-danger)" }}>
-                        {inadimplentes.length}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: 4 }}>
-                        mensalidades em atraso
-                      </div>
+                    <div style={{ background: "var(--color-background-danger)", borderRadius: "var(--border-radius-md)", padding: "1rem", textAlign: "center" }}>
+                      <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-danger)" }}>{inadimplentes.length}</div>
+                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>mensalidades em atraso</div>
                     </div>
                   </Col>
                   <Col xs={12} sm={4}>
-                    <div style={{
-                      background: "var(--color-background-secondary)",
-                      borderRadius: "var(--border-radius-md)",
-                      padding: "1rem",
-                      textAlign: "center"
-                    }}>
-                      <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-primary)" }}>
-                        {alunosUnicos}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: 4 }}>
-                        alunos inadimplentes
-                      </div>
+                    <div style={{ background: "var(--color-background-secondary)", borderRadius: "var(--border-radius-md)", padding: "1rem", textAlign: "center" }}>
+                      <div style={{ fontSize: "24px", fontWeight: 500 }}>{alunosUnicos}</div>
+                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>alunos inadimplentes</div>
                     </div>
                   </Col>
                   <Col xs={12} sm={4}>
-                    <div style={{
-                      background: "var(--color-background-warning)",
-                      borderRadius: "var(--border-radius-md)",
-                      padding: "1rem",
-                      textAlign: "center"
-                    }}>
-                      <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-warning)" }}>
-                        R$ {totalInadimplente.toFixed(2)}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: 4 }}>
-                        valor total em atraso
-                      </div>
+                    <div style={{ background: "var(--color-background-warning)", borderRadius: "var(--border-radius-md)", padding: "1rem", textAlign: "center" }}>
+                      <div style={{ fontSize: "24px", fontWeight: 500, color: "var(--color-text-warning)" }}>R$ {totalInadimplente.toFixed(2)}</div>
+                      <div style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>valor total em atraso</div>
                     </div>
                   </Col>
                 </Row>
               )}
-
-              <TabelaMensalidades lista={inadimplentes} />
-
-              {inadimplentes.length === 0 && !loadingInad && (
-                <div className="text-center py-5">
-                  <div style={{ fontSize: "2rem", marginBottom: 8 }}>✅</div>
-                  <p className="text-muted">Nenhum aluno inadimplente no momento.</p>
-                </div>
-              )}
-
+              {inadimplentes.length === 0
+                ? <div className="text-center py-5"><div style={{ fontSize: "2rem" }}>✅</div><p className="text-muted mt-2">Nenhum inadimplente.</p></div>
+                : <TabelaMensalidades lista={inadimplentes} />}
               <div className="mt-2">
-                <Button variant="outline-secondary" size="sm" onClick={carregarInadimplentes}>
-                  Atualizar lista
-                </Button>
+                <Button variant="outline-secondary" size="sm" onClick={carregarInadimplentes}>Atualizar</Button>
               </div>
             </>
           )}
         </>
       )}
 
-      {/* ── Modal nova mensalidade ── */}
+      {/* Modal nova/editar mensalidade */}
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Form onSubmit={salvar}>
-          <Modal.Header closeButton><Modal.Title>Nova Mensalidade</Modal.Title></Modal.Header>
+          <Modal.Header closeButton>
+            <Modal.Title>{editando ? "Editar Mensalidade" : "Nova Mensalidade"}</Modal.Title>
+          </Modal.Header>
           <Modal.Body>
             <Form.Group className="mb-3">
               <Form.Label>Aluno *</Form.Label>
-              <Form.Select required value={form.id_aluno} onChange={e => setForm({ ...form, id_aluno: Number(e.target.value) })}>
+              <Form.Select required value={form.id_aluno}
+                onChange={e => setForm({ ...form, id_aluno: Number(e.target.value) })}
+                disabled={!!editando}>
                 <option value={0}>Selecione...</option>
                 {alunos.map(a => <option key={a.id_aluno} value={a.id_aluno}>{a.nome}</option>)}
               </Form.Select>
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Mês de Referência *</Form.Label>
-              <Form.Control
-                required
-                placeholder="Ex: Junho/2026"
-                value={form.mes_referencia}
-                onChange={e => setForm({ ...form, mes_referencia: e.target.value })}
-              />
+              <Form.Control required placeholder="Ex: Junho/2026" value={form.mes_referencia}
+                onChange={e => setForm({ ...form, mes_referencia: e.target.value })} />
             </Form.Group>
             <Row>
               <Col>
                 <Form.Group className="mb-3">
                   <Form.Label>Valor (R$) *</Form.Label>
-                  <Form.Control
-                    required type="number" step="0.01"
-                    value={form.valor}
-                    onChange={e => setForm({ ...form, valor: e.target.value })}
-                  />
+                  <Form.Control required type="number" step="0.01" value={form.valor}
+                    onChange={e => setForm({ ...form, valor: e.target.value })} />
                 </Form.Group>
               </Col>
               <Col>
                 <Form.Group className="mb-3">
                   <Form.Label>Vencimento *</Form.Label>
-                  <Form.Control
-                    required type="date"
-                    value={form.data_vencimento}
-                    onChange={e => setForm({ ...form, data_vencimento: e.target.value })}
-                  />
+                  <Form.Control required type="date" value={form.data_vencimento}
+                    onChange={e => setForm({ ...form, data_vencimento: e.target.value })} />
                 </Form.Group>
               </Col>
             </Row>
@@ -398,28 +370,23 @@ export default function Mensalidades() {
         </Form>
       </Modal>
 
-      {/* ── Modal registrar pagamento ── */}
+      {/* Modal registrar pagamento */}
       <Modal show={showPagModal} onHide={() => setShowPagModal(false)}>
         <Form onSubmit={registrarPagamento}>
           <Modal.Header closeButton><Modal.Title>Registrar Pagamento</Modal.Title></Modal.Header>
           <Modal.Body>
             <p className="text-muted mb-3">
-              Mensalidade: <strong>{mensalidadeSelecionada?.mes_referencia}</strong> — {mensalidadeSelecionada?.aluno.nome}
+              <strong>{mensalidadeSelecionada?.mes_referencia}</strong> — {mensalidadeSelecionada?.aluno?.nome}
             </p>
             <Form.Group className="mb-3">
               <Form.Label>Valor Pago (R$) *</Form.Label>
-              <Form.Control
-                required type="number" step="0.01"
-                value={pagForm.valor_pago}
-                onChange={e => setPagForm({ ...pagForm, valor_pago: e.target.value })}
-              />
+              <Form.Control required type="number" step="0.01" value={pagForm.valor_pago}
+                onChange={e => setPagForm({ ...pagForm, valor_pago: e.target.value })} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Forma de Pagamento *</Form.Label>
-              <Form.Select
-                value={pagForm.forma_pagamento}
-                onChange={e => setPagForm({ ...pagForm, forma_pagamento: e.target.value })}
-              >
+              <Form.Select value={pagForm.forma_pagamento}
+                onChange={e => setPagForm({ ...pagForm, forma_pagamento: e.target.value })}>
                 <option>PIX</option>
                 <option>Dinheiro</option>
                 <option>Cartão de Débito</option>

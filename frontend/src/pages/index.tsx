@@ -3,12 +3,13 @@ import { useState, useEffect } from "react";
 import { Row, Col, Card } from "react-bootstrap";
 
 const modulos = [
-  { href: "/alunos", icon: "🥋", titulo: "Alunos", desc: "Cadastro e gestão de alunos" },
-  { href: "/professores", icon: "👨‍🏫", titulo: "Professores", desc: "Cadastro de professores" },
-  { href: "/turmas", icon: "📅", titulo: "Turmas", desc: "Turmas, modalidades e matrículas" },
-  { href: "/presencas", icon: "✅", titulo: "Presenças", desc: "Registro de frequência" },
-  { href: "/mensalidades", icon: "💰", titulo: "Mensalidades", desc: "Controle financeiro" },
-  { href: "/graduacoes", icon: "🥇", titulo: "Graduações", desc: "Histórico de faixas" },
+  { href: "/alunos",       icon: "🥋", titulo: "Alunos",            desc: "Cadastro e gestão de alunos" },
+  { href: "/professores",  icon: "👨‍🏫", titulo: "Professores",       desc: "Cadastro de professores" },
+  { href: "/turmas",       icon: "📅", titulo: "Turmas",             desc: "Turmas, modalidades e matrículas" },
+  { href: "/presencas",    icon: "✅", titulo: "Presenças",          desc: "Registro de frequência" },
+  { href: "/mensalidades", icon: "💰", titulo: "Mensalidades",       desc: "Controle financeiro" },
+  { href: "/graduacoes",   icon: "🥇", titulo: "Graduações",         desc: "Histórico de faixas" },
+  { href: "/usuarios",     icon: "👤", titulo: "Usuários de Acesso", desc: "Gerenciar acessos ao sistema" },
 ];
 
 export default function Home() {

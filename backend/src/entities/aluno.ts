@@ -50,18 +50,17 @@ export class Aluno {
   @JoinColumn({ name: "fk_Usuario_id_usuario" })
   usuario?: Usuario;
 
-  @ManyToMany(() => Turma, (turma) => turma.alunos, { lazy: true })
+  // lazy: false — carregamento explícito via relations
+  @ManyToMany(() => Turma, (turma) => turma.alunos)
   turmas?: Turma[];
 
-  @OneToMany(() => Presenca, (presenca) => presenca.aluno, { lazy: true })
+  @OneToMany(() => Presenca, (presenca) => presenca.aluno)
   presencas?: Presenca[];
 
-  @OneToMany(() => Mensalidade, (mensalidade) => mensalidade.aluno, {
-    lazy: true,
-  })
+  @OneToMany(() => Mensalidade, (mensalidade) => mensalidade.aluno)
   mensalidades?: Mensalidade[];
 
-  @OneToMany(() => Graduacao, (graduacao) => graduacao.aluno, { lazy: true })
+  @OneToMany(() => Graduacao, (graduacao) => graduacao.aluno)
   graduacoes?: Graduacao[];
 }
 

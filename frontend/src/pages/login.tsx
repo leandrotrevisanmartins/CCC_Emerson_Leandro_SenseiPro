@@ -2,25 +2,28 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import { Form, Button, Alert, Container, Row, Col, Card } from "react-bootstrap";
 import authService from "./services/authService";
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
       await authService.login(email, password);
-      router.push("/");
+      router.push(authService.getRedirectPath());
     } catch {
       setError("Credenciais inválidas. Verifique seu email e senha.");
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}>
       <Row className="w-100 justify-content-center">
@@ -36,11 +39,13 @@ export default function Login() {
               <Form onSubmit={handleLogin}>
                 <Form.Group className="mb-3">
                   <Form.Label>Email</Form.Label>
-                  <Form.Control type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} />
+                  <Form.Control type="email" placeholder="seu@email.com" value={email}
+                    onChange={e => setEmail(e.target.value)} required disabled={loading} />
                 </Form.Group>
                 <Form.Group className="mb-4">
                   <Form.Label>Senha</Form.Label>
-                  <Form.Control type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} />
+                  <Form.Control type="password" placeholder="••••••••" value={password}
+                    onChange={e => setPassword(e.target.value)} required disabled={loading} />
                 </Form.Group>
                 <Button variant="dark" type="submit" className="w-100" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}

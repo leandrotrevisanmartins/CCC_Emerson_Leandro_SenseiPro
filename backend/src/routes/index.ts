@@ -10,6 +10,7 @@ import { MensalidadeController } from "../controllers/mensalidadeController";
 import { PagamentoController } from "../controllers/pagamentoController";
 import { GraduacaoController } from "../controllers/graduacaoController";
 import { UtilsController } from "../controllers/utilsController";
+import { MeuPerfilController } from "../controllers/meuPerfilController";
 import auth from "../middleware/auth";
 
 const router = express.Router();
@@ -25,12 +26,21 @@ const mensalidadeController = new MensalidadeController();
 const pagamentoController   = new PagamentoController();
 const graduacaoController   = new GraduacaoController();
 const utilsController       = new UtilsController();
+const meuPerfilController   = new MeuPerfilController();
 
-// ── Utils ──────────────────────────────────────────────────────────────────
 router.get("/healthcheck", utilsController.healthCheck);
-
-// ── Auth ───────────────────────────────────────────────────────────────────
 router.post("/login", loginController.doLogin);
+
+// ── Meu Perfil ─────────────────────────────────────────────────────────────
+router.get ("/me/perfil",       auth.hasAuthorization, meuPerfilController.getPerfil);
+router.get ("/me/turmas",       auth.hasAuthorization, meuPerfilController.getMinhasTurmas);
+router.get ("/me/presencas",    auth.hasAuthorization, meuPerfilController.getMinhasPresencas);
+router.get ("/me/mensalidades", auth.hasAuthorization, meuPerfilController.getMinhasMensalidades);
+router.post("/me/pagamentos",   auth.hasAuthorization, meuPerfilController.registrarMeuPagamento);
+router.get ("/me/graduacoes",   auth.hasAuthorization, meuPerfilController.getMinhasGraduacoes);
+
+// ── Minha senha ────────────────────────────────────────────────────────────
+router.patch("/minha-senha", auth.hasAuthorization, usuarioController.trocarSenha);
 
 // ── Usuários ───────────────────────────────────────────────────────────────
 router.post  ("/usuarios",                   auth.hasAuthorization, auth.isAdmin, usuarioController.create);
@@ -80,12 +90,12 @@ router.put   ("/presencas/:id",              auth.hasAuthorization, auth.isAdmin
 router.delete("/presencas/:id",              auth.hasAuthorization, auth.isAdmin, presencaController.delete);
 
 // ── Mensalidades ───────────────────────────────────────────────────────────
-router.post  ("/mensalidades",                    auth.hasAuthorization, auth.isAdmin, mensalidadeController.create);
-router.get   ("/mensalidades",                    auth.hasAuthorization, auth.isAdmin, mensalidadeController.getAll);
-router.get   ("/mensalidades/inadimplentes",      auth.hasAuthorization, auth.isAdmin, mensalidadeController.getInadimplentes);
-router.get   ("/mensalidades/aluno/:id_aluno",    auth.hasAuthorization, mensalidadeController.getByAluno);
-router.put   ("/mensalidades/:id",                auth.hasAuthorization, auth.isAdmin, mensalidadeController.update);
-router.delete("/mensalidades/:id",                auth.hasAuthorization, auth.isAdmin, mensalidadeController.delete);
+router.post  ("/mensalidades",                 auth.hasAuthorization, auth.isAdmin, mensalidadeController.create);
+router.get   ("/mensalidades",                 auth.hasAuthorization, auth.isAdmin, mensalidadeController.getAll);
+router.get   ("/mensalidades/inadimplentes",   auth.hasAuthorization, auth.isAdmin, mensalidadeController.getInadimplentes);
+router.get   ("/mensalidades/aluno/:id_aluno", auth.hasAuthorization, mensalidadeController.getByAluno);
+router.put   ("/mensalidades/:id",             auth.hasAuthorization, auth.isAdmin, mensalidadeController.update);
+router.delete("/mensalidades/:id",             auth.hasAuthorization, auth.isAdmin, mensalidadeController.delete);
 
 // ── Pagamentos ─────────────────────────────────────────────────────────────
 router.post  ("/pagamentos",                             auth.hasAuthorization, auth.isAdmin, pagamentoController.create);

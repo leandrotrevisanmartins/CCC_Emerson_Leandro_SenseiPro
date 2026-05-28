@@ -58,14 +58,12 @@ export class UsuarioController {
         return;
       }
 
-      // Verifica se email já existe
       const existente = await this.usuarioRepository.getByEmail(email);
       if (existente) {
         res.status(409).json({ error: "Email já cadastrado." });
         return;
       }
 
-      // Cria o usuário com senha padrão
       const senhaHash = await bcrypt.hash(SENHA_PADRAO, 10);
       const novoUsuario = await this.usuarioRepository.create({
         email,
@@ -75,7 +73,6 @@ export class UsuarioController {
 
       let registroCriado: { tipo: string; id: number; nome: string } | null = null;
 
-      // Cria o registro de aluno ou professor automaticamente
       if (perfil === "aluno") {
         const novoAluno = await this.alunoRepository.create({
           nome,
@@ -119,6 +116,44 @@ export class UsuarioController {
     }
   };
 
+  // Troca a senha do próprio usuário logado
+  trocarSenha = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id_usuario = req.usuario!.id_usuario;
+      const { senha_atual, nova_senha } = req.body;
+
+      if (!senha_atual || !nova_senha) {
+        res.status(400).json({ error: "Senha atual e nova senha são obrigatórias." });
+        return;
+      }
+
+      if (nova_senha.length < 6) {
+        res.status(400).json({ error: "A nova senha deve ter pelo menos 6 caracteres." });
+        return;
+      }
+
+      const usuario = await this.usuarioRepository.getById(id_usuario);
+      if (!usuario) {
+        res.status(404).json({ error: "Usuário não encontrado." });
+        return;
+      }
+
+      const senhaValida = await bcrypt.compare(senha_atual, usuario.senha);
+      if (!senhaValida) {
+        res.status(401).json({ error: "Senha atual incorreta." });
+        return;
+      }
+
+      const novaSenhaHash = await bcrypt.hash(nova_senha, 10);
+      await this.usuarioRepository.update(id_usuario, { senha: novaSenhaHash });
+
+      res.status(200).json({ message: "Senha alterada com sucesso." });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao trocar senha." });
+    }
+  };
+
+  // Reseta senha de outro usuário para o padrão (apenas admin)
   resetarSenha = async (req: Request, res: Response): Promise<void> => {
     try {
       const id = parseInt(req.params.id);
