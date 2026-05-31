@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Table, Button, Modal, Form, Alert, Spinner, Badge, Row, Col, Nav } from "react-bootstrap";
 import { MensalidadeInterface, AlunoInterface } from "./interfaces";
 import { mensalidadeService, pagamentoService, alunoService } from "./services";
+import { gerarRelatorioPendentes } from "./utils/gerarRelatorioPDF";
 
 const statusVariant: Record<string, string> = {
   pendente: "warning",
@@ -15,22 +16,20 @@ export default function Mensalidades() {
   const [alunos, setAlunos] = useState<AlunoInterface[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingInad, setLoadingInad] = useState(false);
+  const [gerandoPDF, setGerandoPDF] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
   const [aba, setAba] = useState<"todas" | "pendentes" | "inadimplentes">("todas");
 
-  // Modal nova/editar mensalidade
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<MensalidadeInterface | null>(null);
   const [form, setForm] = useState({ id_aluno: 0, mes_referencia: "", valor: "", data_vencimento: "" });
   const [salvando, setSalvando] = useState(false);
 
-  // Modal pagamento
   const [showPagModal, setShowPagModal] = useState(false);
   const [mensalidadeSelecionada, setMensalidadeSelecionada] = useState<MensalidadeInterface | null>(null);
   const [pagForm, setPagForm] = useState({ valor_pago: "", forma_pagamento: "PIX" });
 
-  // Filtros
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroAluno, setFiltroAluno] = useState("");
 
@@ -141,6 +140,25 @@ export default function Mensalidades() {
     } catch { setErro("Erro ao atualizar status."); }
   };
 
+  // Gera PDF com as mensalidades pendentes/atrasadas
+  const gerarPDF = async () => {
+    setGerandoPDF(true);
+    try {
+      let lista = mensalidades.filter(m => m.status !== "pago");
+      // Se estiver na aba inadimplentes, usa só os atrasados
+      if (aba === "inadimplentes") {
+        lista = inadimplentes.length > 0 ? inadimplentes : await mensalidadeService.getInadimplentes();
+      }
+      if (lista.length === 0) {
+        setSucesso("Não há mensalidades pendentes para gerar o relatório.");
+        return;
+      }
+      gerarRelatorioPendentes(lista);
+      setSucesso(`PDF gerado com ${lista.length} mensalidade(s).`);
+    } catch { setErro("Erro ao gerar PDF."); }
+    finally { setGerandoPDF(false); }
+  };
+
   const filtradas = mensalidades.filter(m => {
     if (filtroStatus && m.status !== filtroStatus) return false;
     if (filtroAluno && !m.aluno.nome.toLowerCase().includes(filtroAluno.toLowerCase())) return false;
@@ -155,10 +173,7 @@ export default function Mensalidades() {
   const TabelaMensalidades = ({ lista, comEdicao = false }: { lista: MensalidadeInterface[]; comEdicao?: boolean }) => (
     <Table striped bordered hover responsive>
       <thead className="table-dark">
-        <tr>
-          <th>#</th><th>Aluno</th><th>Mês</th><th>Valor</th>
-          <th>Vencimento</th><th>Status</th><th>Ações</th>
-        </tr>
+        <tr><th>#</th><th>Aluno</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr>
       </thead>
       <tbody>
         {lista.length === 0 ? (
@@ -173,23 +188,15 @@ export default function Mensalidades() {
             <td><Badge bg={statusVariant[m.status]}>{m.status}</Badge></td>
             <td>
               {m.status !== "pago" && (
-                <Button size="sm" variant="outline-success" className="me-1" onClick={() => abrirPagamento(m)}>
-                  Pagar
-                </Button>
+                <Button size="sm" variant="outline-success" className="me-1" onClick={() => abrirPagamento(m)}>Pagar</Button>
               )}
               {m.status === "pendente" && (
-                <Button size="sm" variant="outline-warning" className="me-1" onClick={() => marcarAtrasado(m)}>
-                  Atrasar
-                </Button>
+                <Button size="sm" variant="outline-warning" className="me-1" onClick={() => marcarAtrasado(m)}>Atrasar</Button>
               )}
               {comEdicao && (
-                <Button size="sm" variant="outline-primary" className="me-1" onClick={() => abrirEdicao(m)}>
-                  Editar
-                </Button>
+                <Button size="sm" variant="outline-primary" className="me-1" onClick={() => abrirEdicao(m)}>Editar</Button>
               )}
-              <Button size="sm" variant="outline-danger" onClick={() => excluir(m.id_mensalidade!)}>
-                Excluir
-              </Button>
+              <Button size="sm" variant="outline-danger" onClick={() => excluir(m.id_mensalidade!)}>Excluir</Button>
             </td>
           </tr>
         ))}
@@ -200,8 +207,18 @@ export default function Mensalidades() {
   return (
     <div className="py-3">
       <Row className="align-items-center mb-3">
-        <Col><h4 className="fw-bold mb-0">💰 Mensalidades</h4></Col>
-        <Col xs="auto">
+        <Col>
+          <h4 className="fw-bold mb-0">💰 Mensalidades</h4>
+        </Col>
+        <Col xs="auto" className="d-flex gap-2">
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={gerarPDF}
+            disabled={gerandoPDF || loading}
+          >
+            {gerandoPDF ? "Gerando..." : "📄 Gerar PDF Pendentes"}
+          </Button>
           <Button variant="dark" size="sm" onClick={abrirNova}>+ Nova Mensalidade</Button>
         </Col>
       </Row>
@@ -363,9 +380,7 @@ export default function Mensalidades() {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button variant="dark" type="submit" disabled={salvando}>
-              {salvando ? "Salvando..." : "Salvar"}
-            </Button>
+            <Button variant="dark" type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button>
           </Modal.Footer>
         </Form>
       </Modal>
@@ -397,9 +412,7 @@ export default function Mensalidades() {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowPagModal(false)}>Cancelar</Button>
-            <Button variant="success" type="submit" disabled={salvando}>
-              {salvando ? "Registrando..." : "Confirmar Pagamento"}
-            </Button>
+            <Button variant="success" type="submit" disabled={salvando}>{salvando ? "Registrando..." : "Confirmar Pagamento"}</Button>
           </Modal.Footer>
         </Form>
       </Modal>
