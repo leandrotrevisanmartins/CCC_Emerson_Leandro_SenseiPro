@@ -51,11 +51,12 @@ const NavbarTop = () => {
   const isProfessor = perfil === "professor";
 
   const userMenu = (
-    <NavDropdown title={
-      <span style={{ fontSize: "0.85rem", color: "#fff" }}>
+    <NavDropdown
+      title={<span style={{ fontSize: "0.85rem", color: "#fff" }}>
         {usuario?.email} <span className="badge bg-secondary">{usuario?.perfil}</span>
-      </span>
-    } id="user-dropdown" align="end">
+      </span>}
+      id="user-dropdown" align="end"
+    >
       <NavDropdown.Item onClick={abrirTrocarSenha}>🔑 Trocar Senha</NavDropdown.Item>
       <NavDropdown.Divider />
       <NavDropdown.Item onClick={handleLogout} style={{ color: "#dc3545" }}>Sair</NavDropdown.Item>
@@ -72,7 +73,6 @@ const NavbarTop = () => {
           <Navbar.Toggle aria-controls="navbar-nav" />
           <Navbar.Collapse id="navbar-nav">
 
-            {/* Menu ADMIN */}
             {isAdmin && (
               <Nav className="me-auto">
                 <Nav.Link as={Link} href="/alunos">Alunos</Nav.Link>
@@ -86,11 +86,12 @@ const NavbarTop = () => {
                 <NavDropdown title="Configurações" id="config-dropdown">
                   <NavDropdown.Item as={Link} href="/usuarios">Usuários de Acesso</NavDropdown.Item>
                   <NavDropdown.Item as={Link} href="/modalidades">Modalidades</NavDropdown.Item>
+                  <NavDropdown.Divider />
+                  <NavDropdown.Item as={Link} href="/logs">Logs de Auditoria</NavDropdown.Item>
                 </NavDropdown>
               </Nav>
             )}
 
-            {/* Menu PROFESSOR */}
             {isProfessor && (
               <Nav className="me-auto">
                 <Nav.Link as={Link} href="/professor/dashboard">Início</Nav.Link>
@@ -101,7 +102,6 @@ const NavbarTop = () => {
               </Nav>
             )}
 
-            {/* Menu ALUNO */}
             {isAluno && (
               <Nav className="me-auto">
                 <Nav.Link as={Link} href="/aluno/dashboard">Início</Nav.Link>

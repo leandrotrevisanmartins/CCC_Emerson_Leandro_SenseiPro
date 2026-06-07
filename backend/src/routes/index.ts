@@ -11,6 +11,8 @@ import { PagamentoController } from "../controllers/pagamentoController";
 import { GraduacaoController } from "../controllers/graduacaoController";
 import { UtilsController } from "../controllers/utilsController";
 import { MeuPerfilController } from "../controllers/meuPerfilController";
+import { LogAuditoriaController } from "../controllers/logAuditoriaController";
+import { auditar } from "../middleware/auditoria";
 import auth from "../middleware/auth";
 
 const router = express.Router();
@@ -27,6 +29,10 @@ const pagamentoController   = new PagamentoController();
 const graduacaoController   = new GraduacaoController();
 const utilsController       = new UtilsController();
 const meuPerfilController   = new MeuPerfilController();
+const logController         = new LogAuditoriaController();
+
+// Middleware de auditoria aplicado em todas as rotas
+router.use(auditar);
 
 router.get("/healthcheck", utilsController.healthCheck);
 router.post("/login", loginController.doLogin);
@@ -49,6 +55,9 @@ router.get   ("/usuarios/:id",               auth.hasAuthorization, auth.isAdmin
 router.put   ("/usuarios/:id",               auth.hasAuthorization, auth.isAdmin, usuarioController.update);
 router.patch ("/usuarios/:id/resetar-senha", auth.hasAuthorization, auth.isAdmin, usuarioController.resetarSenha);
 router.delete("/usuarios/:id",               auth.hasAuthorization, auth.isAdmin, usuarioController.delete);
+
+// ── Logs de Auditoria (somente admin) ─────────────────────────────────────
+router.get("/logs", auth.hasAuthorization, auth.isAdmin, logController.getLogs);
 
 // ── Alunos ─────────────────────────────────────────────────────────────────
 router.post  ("/alunos",               auth.hasAuthorization, alunoController.create);
