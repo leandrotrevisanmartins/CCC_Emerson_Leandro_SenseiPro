@@ -95,7 +95,7 @@ export default function Turmas() {
   const deletar = async (id: number) => {
     if (!confirm("Deseja excluir esta turma?")) return;
     try { await turmaService.delete(id); carregar(); }
-    catch { setErro("Erro ao excluir turma."); }
+    catch (err: any) { const msg = err?.response?.data?.error || "Erro ao excluir turma."; const sug = err?.response?.data?.sugestao || ""; setErro(sug ? `${msg} ${sug}` : msg); }
   };
 
   // ── Matrícula ─────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Modal, Form, Alert, Badge, Spinner, Row, Col } from "react-bootstrap";
+import {
+  Table, Button, Modal, Form, Alert, Badge, Spinner, Row, Col,
+} from "react-bootstrap";
 import { AlunoInterface } from "./interfaces";
 import { alunoService } from "./services";
 
@@ -10,7 +12,6 @@ export default function Alunos() {
   const [sucesso, setSucesso] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
-
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<AlunoInterface | null>(null);
   const [form, setForm] = useState({ nome: "", email: "", telefone: "", data_nascimento: "" });
@@ -67,10 +68,10 @@ export default function Alunos() {
   };
 
   const inativar = async (aluno: AlunoInterface) => {
-    if (!confirm(`Deseja inativar o aluno "${aluno.nome}"? O histórico será mantido.`)) return;
+    if (!confirm(`Inativar "${aluno.nome}"? O histórico será mantido.`)) return;
     try {
       await alunoService.inativar(aluno.id_aluno!);
-      setSucesso(`Aluno "${aluno.nome}" inativado com sucesso.`);
+      setSucesso(`Aluno "${aluno.nome}" inativado.`);
       carregar();
     } catch {
       setErro("Erro ao inativar aluno.");
@@ -78,10 +79,10 @@ export default function Alunos() {
   };
 
   const reativar = async (aluno: AlunoInterface) => {
-    if (!confirm(`Deseja reativar o aluno "${aluno.nome}"?`)) return;
+    if (!confirm(`Reativar "${aluno.nome}"?`)) return;
     try {
-      await alunoService.update(aluno.id_aluno!, { status: "ativo" });
-      setSucesso(`Aluno "${aluno.nome}" reativado com sucesso.`);
+      await alunoService.update(aluno.id_aluno!, { status: "ativo" } as any);
+      setSucesso(`Aluno "${aluno.nome}" reativado.`);
       carregar();
     } catch {
       setErro("Erro ao reativar aluno.");
@@ -89,23 +90,15 @@ export default function Alunos() {
   };
 
   const deletar = async (aluno: AlunoInterface) => {
-    if (!confirm(`Deseja excluir permanentemente o aluno "${aluno.nome}"?`)) return;
+    if (!confirm(`Excluir permanentemente "${aluno.nome}"?`)) return;
     try {
       await alunoService.delete(aluno.id_aluno!);
-      setSucesso(`Aluno "${aluno.nome}" excluído com sucesso.`);
+      setSucesso(`Aluno "${aluno.nome}" excluído.`);
       carregar();
     } catch (err: any) {
-      if (err?.response?.status === 409) {
-        const detalhes = err?.response?.data?.detalhes;
-        const detalheTexto = detalhes
-          ? ` (${detalhes.presencas} presença(s), ${detalhes.mensalidades} mensalidade(s))`
-          : "";
-        setErro(
-          `${err?.response?.data?.error}${detalheTexto}. Use o botão Inativar para manter o histórico.`
-        );
-      } else {
-        setErro("Erro ao excluir aluno.");
-      }
+      const msg = err?.response?.data?.error || "Erro ao excluir aluno.";
+      const sugestao = err?.response?.data?.sugestao || "";
+      setErro(sugestao ? `${msg} ${sugestao}` : msg);
     }
   };
 
@@ -146,7 +139,7 @@ export default function Alunos() {
           <Col xs="auto">
             <Button variant="outline-secondary" size="sm"
               onClick={() => { setBusca(""); setFiltroStatus(""); }}>
-              Limpar filtros
+              Limpar
             </Button>
           </Col>
         )}
@@ -206,19 +199,23 @@ export default function Alunos() {
           <Modal.Body>
             <Form.Group className="mb-3">
               <Form.Label>Nome *</Form.Label>
-              <Form.Control required value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} />
+              <Form.Control required value={form.nome}
+                onChange={e => setForm({ ...form, nome: e.target.value })} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Email</Form.Label>
-              <Form.Control type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              <Form.Control type="email" value={form.email}
+                onChange={e => setForm({ ...form, email: e.target.value })} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Telefone</Form.Label>
-              <Form.Control value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} />
+              <Form.Control value={form.telefone}
+                onChange={e => setForm({ ...form, telefone: e.target.value })} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Data de Nascimento</Form.Label>
-              <Form.Control type="date" value={form.data_nascimento} onChange={e => setForm({ ...form, data_nascimento: e.target.value })} />
+              <Form.Control type="date" value={form.data_nascimento}
+                onChange={e => setForm({ ...form, data_nascimento: e.target.value })} />
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>

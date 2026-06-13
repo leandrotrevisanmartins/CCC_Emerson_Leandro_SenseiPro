@@ -6,6 +6,7 @@ import ProfessorRepository from "../repositories/professorRepository";
 import AlunoRepository from "../repositories/alunoRepository";
 import { Turma } from "../entities/turma";
 import { Aluno } from "../entities/aluno";
+import { Presenca } from "../entities/presenca";
 
 export class TurmaController {
   private turmaRepository: TurmaRepository;
@@ -75,17 +76,50 @@ export class TurmaController {
     }
   };
 
+  // Verifica vínculos antes de deletar para evitar FK violation
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const sucesso = await this.turmaRepository.delete(parseInt(req.params.id));
-      if (!sucesso) { res.status(404).json({ error: "Turma não encontrada." }); return; }
+      const id = parseInt(req.params.id);
+
+      const turma = await this.turmaRepository.getById(id);
+      if (!turma) {
+        res.status(404).json({ error: "Turma não encontrada." });
+        return;
+      }
+
+      // Conta alunos matriculados e presenças
+      const presencaRepo = appDataSource.getRepository(Presenca);
+      const [totalAlunos, totalPresencas] = await Promise.all([
+        (turma.alunos || []).length,
+        presencaRepo.count({ where: { turma: { id_turma: id } } }),
+      ]);
+
+      if (totalAlunos > 0 || totalPresencas > 0) {
+        res.status(409).json({
+          error: "Não é possível excluir esta turma pois ela possui registros vinculados.",
+          detalhes: {
+            alunos_matriculados: totalAlunos,
+            presencas: totalPresencas,
+          },
+          sugestao: totalAlunos > 0
+            ? "Desmatricule todos os alunos antes de excluir a turma."
+            : "Remova os registros de presença antes de excluir a turma.",
+        });
+        return;
+      }
+
+      const sucesso = await this.turmaRepository.delete(id);
+      if (!sucesso) {
+        res.status(404).json({ error: "Turma não encontrada." });
+        return;
+      }
       res.status(204).send();
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Erro ao deletar turma." });
     }
   };
 
-  // Matricular aluno — usa QueryBuilder direto para evitar problemas com lazy loading
   matricularAluno = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id_aluno } = req.body;
@@ -109,7 +143,6 @@ export class TurmaController {
         return;
       }
 
-      // Usa relation query builder para inserir na tabela matricula diretamente
       await turmaRepo
         .createQueryBuilder()
         .relation(Turma, "alunos")
@@ -123,7 +156,6 @@ export class TurmaController {
     }
   };
 
-  // Desmatricular aluno — usa QueryBuilder direto
   desmatricularAluno = async (req: Request, res: Response): Promise<void> => {
     try {
       const id_aluno = parseInt(req.params.id_aluno);

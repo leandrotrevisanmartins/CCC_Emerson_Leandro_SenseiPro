@@ -85,17 +85,26 @@ export class MensalidadeController {
     }
   };
 
+  // Remove pagamentos vinculados antes de excluir a mensalidade
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const sucesso = await this.mensalidadeRepository.delete(
-        parseInt(req.params.id)
-      );
+      const id = parseInt(req.params.id);
+
+      const pagamentoRepo = appDataSource.getRepository("Pagamento");
+      await pagamentoRepo
+        .createQueryBuilder()
+        .delete()
+        .where("fk_Mensalidade_id_mensalidade = :id", { id })
+        .execute();
+
+      const sucesso = await this.mensalidadeRepository.delete(id);
       if (!sucesso) {
         res.status(404).json({ error: "Mensalidade não encontrada." });
         return;
       }
       res.status(204).send();
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Erro ao deletar mensalidade." });
     }
   };

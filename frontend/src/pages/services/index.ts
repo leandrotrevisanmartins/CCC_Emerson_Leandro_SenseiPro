@@ -5,6 +5,7 @@ export const alunoService = {
   getById: (id: number) => api.get<AlunoInterface>(`/alunos/${id}`).then(r => r.data),
   create: (data: Partial<AlunoInterface>) => api.post<AlunoInterface>("/alunos", data).then(r => r.data),
   update: (id: number, data: Partial<AlunoInterface>) => api.put<AlunoInterface>(`/alunos/${id}`, data).then(r => r.data),
+  inativar: (id: number) => api.patch<AlunoInterface>(`/alunos/${id}/inativar`).then(r => r.data),
   delete: (id: number) => api.delete(`/alunos/${id}`).then(r => r.status),
 };
 export const professorService = {

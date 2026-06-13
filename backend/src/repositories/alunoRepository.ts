@@ -9,6 +9,7 @@ export interface IAlunoRepository {
   create(data: Partial<Aluno>): Promise<Aluno>;
   update(id: number, data: Partial<Aluno>): Promise<Aluno | undefined>;
   inativar(id: number): Promise<Aluno | undefined>;
+  reativar(id: number): Promise<Aluno | undefined>;
   delete(id: number): Promise<boolean>;
   temVinculos(id: number): Promise<{ presencas: number; mensalidades: number }>;
 }
@@ -25,13 +26,13 @@ class AlunoRepository implements IAlunoRepository {
   }
 
   async getAll(): Promise<Aluno[]> {
-    return this.repository.find({ relations: ["usuario", "turmas"] });
+    return this.repository.find({ relations: ["usuario"] });
   }
 
   async getById(id: number): Promise<Aluno | undefined> {
     const aluno = await this.repository.findOne({
       where: { id_aluno: id },
-      relations: ["usuario", "turmas", "graduacoes"],
+      relations: ["usuario"],
     });
     return aluno || undefined;
   }
@@ -48,15 +49,21 @@ class AlunoRepository implements IAlunoRepository {
     return this.repository.save(merged);
   }
 
-  // Inativa o aluno sem excluir — usado quando há vínculos
+  // Usa update direto para não carregar relações ManyToMany e evitar cascade
   async inativar(id: number): Promise<Aluno | undefined> {
-    const aluno = await this.getById(id);
-    if (!aluno) return undefined;
-    aluno.status = StatusAluno.INATIVO;
-    return this.repository.save(aluno);
+    const existe = await this.repository.findOne({ where: { id_aluno: id } });
+    if (!existe) return undefined;
+    await this.repository.update(id, { status: StatusAluno.INATIVO });
+    return (await this.repository.findOne({ where: { id_aluno: id } })) ?? undefined;
   }
 
-  // Verifica quantos registros estão vinculados ao aluno
+  async reativar(id: number): Promise<Aluno | undefined> {
+    const existe = await this.repository.findOne({ where: { id_aluno: id } });
+    if (!existe) return undefined;
+    await this.repository.update(id, { status: StatusAluno.ATIVO });
+    return (await this.repository.findOne({ where: { id_aluno: id } })) ?? undefined;
+  }
+
   async temVinculos(id: number): Promise<{ presencas: number; mensalidades: number }> {
     const [presencas, mensalidades] = await Promise.all([
       this.presencaRepository.count({ where: { aluno: { id_aluno: id } } }),

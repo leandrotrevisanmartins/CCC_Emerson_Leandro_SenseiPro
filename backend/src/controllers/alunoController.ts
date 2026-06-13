@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { appDataSource } from "../data-source";
 import AlunoRepository from "../repositories/alunoRepository";
+import { Turma } from "../entities/turma";
 
 export class AlunoController {
   private alunoRepository: AlunoRepository;
@@ -61,7 +62,6 @@ export class AlunoController {
     }
   };
 
-  // Inativa o aluno sem excluir do banco
   inativar = async (req: Request, res: Response): Promise<void> => {
     try {
       const inativado = await this.alunoRepository.inativar(parseInt(req.params.id));
@@ -71,43 +71,87 @@ export class AlunoController {
       }
       res.status(200).json(inativado);
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Erro ao inativar aluno." });
     }
   };
 
+  // Exclui o aluno removendo todos os vínculos na ordem correta
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
       const id = parseInt(req.params.id);
 
-      // Verifica se o aluno existe
       const aluno = await this.alunoRepository.getById(id);
       if (!aluno) {
         res.status(404).json({ error: "Aluno não encontrado." });
         return;
       }
 
-      // Verifica vínculos com presenças e mensalidades
-      const vinculos = await this.alunoRepository.temVinculos(id);
+      const presencaRepo    = appDataSource.getRepository("Presenca");
+      const pagamentoRepo   = appDataSource.getRepository("Pagamento");
+      const mensalidadeRepo = appDataSource.getRepository("Mensalidade");
+      const graduacaoRepo   = appDataSource.getRepository("Graduacao");
+      const turmaRepo       = appDataSource.getRepository(Turma);
 
-      if (vinculos.presencas > 0 || vinculos.mensalidades > 0) {
-        res.status(409).json({
-          error: "Não é possível excluir este aluno pois ele possui registros vinculados.",
-          detalhes: {
-            presencas: vinculos.presencas,
-            mensalidades: vinculos.mensalidades,
-          },
-          sugestao: "Utilize a opção de inativar para manter o histórico do aluno.",
-        });
-        return;
+      // 1. Desmatricula de todas as turmas
+      const turmasDoAluno = await turmaRepo
+        .createQueryBuilder("turma")
+        .innerJoin("turma.alunos", "aluno", "aluno.id_aluno = :id", { id })
+        .select("turma.id_turma")
+        .getMany();
+
+      if (turmasDoAluno.length > 0) {
+        await turmaRepo
+          .createQueryBuilder()
+          .relation(Turma, "alunos")
+          .of(turmasDoAluno)
+          .remove(id);
       }
 
-      const sucesso = await this.alunoRepository.delete(id);
-      if (!sucesso) {
-        res.status(404).json({ error: "Aluno não encontrado." });
-        return;
+      // 2. Remove presenças
+      await presencaRepo
+        .createQueryBuilder()
+        .delete()
+        .where("fk_Aluno_id_aluno = :id", { id })
+        .execute();
+
+      // 3. Busca IDs das mensalidades do aluno
+      const mensalidades = await mensalidadeRepo
+        .createQueryBuilder("m")
+        .select("m.id_mensalidade", "id")
+        .where("m.fk_Aluno_id_aluno = :id", { id })
+        .getRawMany();
+
+      // 4. Remove pagamentos vinculados (se houver mensalidades)
+      if (mensalidades.length > 0) {
+        const ids = mensalidades.map((m: any) => m.id);
+        await pagamentoRepo
+          .createQueryBuilder()
+          .delete()
+          .where("fk_Mensalidade_id_mensalidade IN (:...ids)", { ids })
+          .execute();
       }
+
+      // 5. Remove mensalidades
+      await mensalidadeRepo
+        .createQueryBuilder()
+        .delete()
+        .where("fk_Aluno_id_aluno = :id", { id })
+        .execute();
+
+      // 6. Remove graduações
+      await graduacaoRepo
+        .createQueryBuilder()
+        .delete()
+        .where("fk_Aluno_id_aluno = :id", { id })
+        .execute();
+
+      // 7. Remove o aluno
+      await this.alunoRepository.delete(id);
+
       res.status(204).send();
     } catch (error) {
+      console.error("ERRO DELETE ALUNO:", error);
       res.status(500).json({ error: "Erro ao deletar aluno." });
     }
   };

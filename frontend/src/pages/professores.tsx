@@ -57,7 +57,7 @@ export default function Professores() {
   const deletar = async (id: number) => {
     if (!confirm("Deseja excluir este professor?")) return;
     try { await professorService.delete(id); carregar(); }
-    catch { setErro("Erro ao excluir professor."); }
+    catch (err: any) { const msg = err?.response?.data?.error || "Erro ao excluir professor."; const sug = err?.response?.data?.sugestao || ""; setErro(sug ? `${msg} ${sug}` : msg); }
   };
 
   const filtrados = professores.filter(p =>
