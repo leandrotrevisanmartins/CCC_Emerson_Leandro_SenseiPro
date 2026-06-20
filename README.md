@@ -1,8 +1,8 @@
-# SenseiPro — Sistema de Gestão de Academia de Artes Marciais
+# 🥋 SenseiPro — Sistema de Gestão de Academia de Artes Marciais
 
 **Universidade de Passo Fundo – UPF**  
 Emerson Rosado Scalcon · Leandro Trevisan Martins · 2026  
-CCC — Prof. Jeangrei Veiga
+ADS/CCC/ECP — Prof. Jeangrei Veiga / Alexandre Zanatta
 
 ---
 
@@ -14,7 +14,7 @@ O SenseiPro é um sistema web completo para gestão de academias de artes marcia
 |---|---|
 | **Administrador** | Gerencia tudo: alunos, professores, turmas, mensalidades, graduações, usuários e logs |
 | **Professor** | Registra presenças, visualiza suas turmas e registra graduações |
-| **Aluno** | Consulta suas turmas, presenças, mensalidades, graduações e confirma pagamentos |
+| **Aluno** | Consulta suas turmas, presenças, mensalidades e graduações. Pode confirmar pagamentos |
 
 ---
 
@@ -200,6 +200,53 @@ Senha: password
 
 ---
 
+## Regras de exclusão
+
+O sistema aplica regras de integridade referencial para evitar perda de histórico. Entenda o comportamento de cada exclusão:
+
+### Alunos
+
+| Situação | Comportamento |
+|---|---|
+| Aluno **sem** nenhum vínculo | Excluído permanentemente |
+| Aluno **com** presenças, mensalidades ou graduações | A exclusão remove **em cascata** todos os registros vinculados (presenças, pagamentos, mensalidades, graduações e matrículas) antes de excluir o aluno |
+
+> **Recomendação:** use o botão **Inativar** para preservar o histórico do aluno. O aluno inativo não aparece nas listas operacionais, mas seus dados ficam intactos no banco.
+
+---
+
+### Professores
+
+| Situação | Comportamento |
+|---|---|
+| Professor **sem** turmas vinculadas | Excluído permanentemente |
+| Professor **com** turmas vinculadas | Bloqueado — retorna erro 409 com a quantidade de turmas |
+
+> **Como resolver:** reatribua as turmas a outro professor ou exclua as turmas antes de excluir o professor.
+
+---
+
+### Turmas
+
+| Situação | Comportamento |
+|---|---|
+| Turma **sem** alunos e **sem** presenças | Excluída permanentemente |
+| Turma **com** alunos matriculados | Bloqueada — retorna erro 409 sugerindo desmatricular os alunos |
+| Turma **com** presenças registradas | Bloqueada — retorna erro 409 sugerindo remover os registros de presença |
+
+> **Como resolver:** desmatricule todos os alunos pela tela de Matrículas e, se houver presenças, remova-as na tela de Presenças antes de excluir a turma.
+
+---
+
+### Mensalidades
+
+| Situação | Comportamento |
+|---|---|
+| Mensalidade **sem** pagamentos | Excluída permanentemente |
+| Mensalidade **com** pagamentos | Os pagamentos são removidos automaticamente antes de excluir a mensalidade |
+
+---
+
 ## Estrutura do projeto
 
 ```
@@ -217,7 +264,7 @@ CCC_Emerson_Leandro_SenseiPro/
 │   └── src/pages/
 │       ├── aluno/           # Área restrita do aluno
 │       ├── professor/       # Área restrita do professor
-│       ├── components/      # NavBar, FooterBar, HealthCheck
+│       ├── components/      # NavBar, FooterBar
 │       ├── services/        # Chamadas à API (Axios)
 │       ├── utils/           # Geração de PDFs (jsPDF)
 │       └── interfaces/      # Tipos TypeScript
@@ -236,6 +283,7 @@ Base URL: `http://localhost:3001/api`
 | GET | `/alunos` | Todos | Listar alunos |
 | POST | `/alunos` | Admin | Criar aluno |
 | PATCH | `/alunos/:id/inativar` | Admin | Inativar aluno |
+| DELETE | `/alunos/:id` | Admin | Excluir aluno em cascata |
 | GET | `/turmas` | Todos | Listar turmas |
 | POST | `/turmas/:id/matricular` | Admin/Prof | Matricular aluno |
 | DELETE | `/turmas/:id/aluno/:id` | Admin/Prof | Desmatricular |
@@ -263,10 +311,12 @@ Base URL: `http://localhost:3001/api`
 - ✅ Logs de auditoria persistidos no banco (20 tipos de ação)
 - ✅ CRUD completo: alunos, professores, turmas, modalidades
 - ✅ Inativação de aluno (sem perda de histórico)
+- ✅ Exclusão de aluno com remoção em cascata de todos os vínculos
 - ✅ Matrícula e desmatrícula de alunos por turma
 - ✅ Registro de presença individual ou de turma completa
 - ✅ Controle de mensalidades com abas (todas / pendentes / inadimplentes)
 - ✅ Pagamento registrado pelo admin ou confirmado pelo próprio aluno
+- ✅ Exclusão de mensalidade com remoção automática dos pagamentos
 - ✅ Histórico de graduações e faixas por aluno
 - ✅ Dashboards distintos por perfil com menus restritos
 - ✅ Criação de usuário com cadastro automático de aluno/professor
@@ -293,13 +343,26 @@ npm error ERESOLVE could not resolve
 ```
 Error: listen EADDRINUSE :::3001
 ```
-→ Outro processo está usando a porta. Encerre-o ou altere `API_PORT` no `.env`.
+→ Outra instância da API está rodando. Encerre com:
+```bash
+# Linux
+kill $(lsof -t -i:3001)
+
+# Linux (alternativa)
+fuser -k 3001/tcp
+```
 
 ### Tabelas não criadas
 → Verifique se a API subiu com `✅ Banco de dados conectado`. O TypeORM cria as tabelas automaticamente ao iniciar.
 
 ### Login retorna "Credenciais inválidas"
 → Verifique se o usuário admin foi inserido no banco. O hash da senha deve começar com `$2a$10$`.
+
+### Login bloqueado
+→ Após 5 tentativas incorretas, o acesso fica bloqueado por 15 minutos. Aguarde ou reinicie a API para limpar o contador em memória.
+
+### Erro ao excluir professor ou turma
+→ O registro possui vínculos. Leia a seção **Regras de exclusão** acima para resolver.
 
 ---
 
@@ -313,3 +376,6 @@ Error: listen EADDRINUSE :::3001
 
 ---
 
+## Licença
+
+Projeto acadêmico — Universidade de Passo Fundo (UPF) · 2026
